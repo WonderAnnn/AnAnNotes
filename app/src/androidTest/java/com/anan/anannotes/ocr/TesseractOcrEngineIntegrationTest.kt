@@ -141,17 +141,10 @@ class TesseractOcrEngineIntegrationTest {
   @Test
   fun verySmallCompressedTextDoesNotLoseMostOfItsContent() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
-    val image = createCorpusBitmap(
-      width = 480,
-      height = 215,
-      textColor = Color.rgb(180, 178, 174),
-      backgroundColor = Color.rgb(246, 245, 241),
-      textSize = 19f,
-    )
-    val encoded = ByteArrayOutputStream().use { output ->
-      check(image.compress(Bitmap.CompressFormat.JPEG, 24, output))
-      output.toByteArray()
-    }
+    // Calibration asset (rendered + JPEG-compressed once on the reference device):
+    // runtime Canvas rasterization and JPEG encoders differ per Android release.
+    val encoded = InstrumentationRegistry.getInstrumentation().context.assets
+      .open("ocr/corpus/tiny-compressed.jpg").use { it.readBytes() }
     try {
       val recognized = kotlinx.coroutines.runBlocking {
         TesseractOcrEngine(context).recognize(encoded)
@@ -159,14 +152,10 @@ class TesseractOcrEngineIntegrationTest {
       val cer = characterErrorRate(GROUND_TRUTH, recognized)
       val lines = recognized.lineSequence().count(String::isNotBlank)
 
-      // Runtime Canvas text rasterization differs per Android release; 0.12 is
-      // calibrated on API 35 and Android 10 needs headroom (measured 0.143 on API 29).
-      val budget = if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.Q) 0.20 else 0.12
-      assertTrue("超小低清文字被严重误识别或漏识别，CER=$cer; result=$recognized", cer <= budget)
+      assertTrue("超小低清文字被严重误识别或漏识别，CER=$cer; result=$recognized", cer <= 0.12)
       assertTrue("超小低清输入未保留多行结构，实际 $lines 行: $recognized", lines in 4..7)
     } finally {
       encoded.fill(0)
-      image.recycle()
     }
   }
 

@@ -78,8 +78,7 @@ class TesseractOcrSyntheticCorpusTest {
         val forbiddenHits = sample.forbiddenTokens.filter(recognized::contains)
 
         Log.i(TAG, "sample=${sample.id} cer=$cer lines=$lineCount elapsedMs=$elapsedMs")
-        val budget = characterBudgetFor(sample.maxCharacterErrorRate)
-        assertTrue("${sample.id} CER=$cer exceeds $budget", cer <= budget)
+        assertTrue("${sample.id} CER=$cer exceeds ${sample.maxCharacterErrorRate}", cer <= sample.maxCharacterErrorRate)
         assertTrue("${sample.id} line count=$lineCount expected=${sample.expectedLineCount}",
           lineCount in sample.minimumLineCount..(sample.expectedLineCount + 2))
         assertTrue("${sample.id} contains synthetic status-bar noise: $forbiddenHits", forbiddenHits.isEmpty())
@@ -102,13 +101,6 @@ class TesseractOcrSyntheticCorpusTest {
     check(compress(Bitmap.CompressFormat.JPEG, quality, output))
     output.toByteArray()
   }
-
-  /** Corpus bitmaps are rendered at runtime via Canvas text, whose rasterization
-   * (font version, gamma) differs per Android release. Budgets are calibrated on
-   * API 35; the Android 10 system image needs headroom (sparse-status-noise
-   * measured 0.189 on API 29 vs the 0.12 calibration). */
-  private fun characterBudgetFor(calibrated: Double): Double =
-    if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.Q) calibrated + 0.08 else calibrated
 
   private companion object {
     const val TAG = "AnAnOcrCorpus"
