@@ -49,7 +49,9 @@ android {
 }
 
 kotlin {
-    // The installed Android Studio JBR is Java 21; keep Java 17 bytecode targets above.
+    // Launcher JVM is the Android Studio JBR (Java 25.0.3 as of 2026-10-25); the
+    // foojay resolver in settings.gradle.kts provisions the pinned Java 21 toolchain,
+    // and bytecode targets above stay at Java 17.
     jvmToolchain(21)
 }
 
