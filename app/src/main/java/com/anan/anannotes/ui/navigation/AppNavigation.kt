@@ -85,6 +85,8 @@ fun AppNavigation(
   cacheMessage: String? = null,
   incomingShare: ShareImportPayload? = null,
   onShareImportConsumed: () -> Unit = {},
+  pendingOpenNoteId: String? = null,
+  onOpenNoteConsumed: () -> Unit = {},
   onSystemBarDarkIconsChange: (Boolean) -> Unit = {},
   onEditorStatusBarDarkIconsChange: (Boolean) -> Unit = {},
   onEditorNavigationBarDarkIconsChange: (Boolean) -> Unit = {},
@@ -128,6 +130,18 @@ fun AppNavigation(
         ),
       )
       onShareImportConsumed()
+    }
+  }
+
+  // Debug-only direct open (gated in MainActivity by the debuggable flag): lets
+  // instrumented tests jump straight to a seeded note without racing home-list
+  // composition after rotations or back-to-back editor tests.
+  LaunchedEffect(pendingOpenNoteId) {
+    pendingOpenNoteId?.let { noteId ->
+      backStack.clear()
+      backStack.add(HomeRoute)
+      backStack.add(EditorRoute(noteId = noteId))
+      onOpenNoteConsumed()
     }
   }
 

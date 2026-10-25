@@ -651,9 +651,14 @@ class EditorScreenTest {
         title = title,
         blocks = listOf(NoteBlockDraft(id = "landscape-image", type = BlockType.IMAGE, assetPath = "notes/assets/missing.jpg")),
       )
-      // This suite occasionally hits bursts of emulator slowness right after rotation;
-      // opening through search (keyed by noteId) sidesteps the home-list races.
-      openNoteViaSearch(noteId, title)
+      // Debug-only launch hook: recreate with debug_open_note_id so the editor opens
+      // the seeded note directly, bypassing every home-list/search navigation race.
+      // The wide window covers the startup recovery gate that re-runs on each recreate.
+      composeRule.runOnIdle {
+        composeRule.activity.intent.putExtra("debug_open_note_id", noteId)
+        composeRule.activity.recreate()
+      }
+      waitForEditorReady(timeoutMillis = 30_000)
       composeRule.onNodeWithTag("image-block-landscape-image").performScrollTo().performClick()
       composeRule.onNodeWithText("图片大小").assertIsDisplayed()
 
@@ -1323,8 +1328,8 @@ class EditorScreenTest {
     waitForEditorReady()
   }
 
-  private fun waitForEditorReady() {
-    composeRule.waitUntil(10_000) {
+  private fun waitForEditorReady(timeoutMillis: Long = 10_000) {
+    composeRule.waitUntil(timeoutMillis) {
       composeRule.onAllNodesWithTag("editor-metadata").fetchSemanticsNodes().isNotEmpty()
     }
   }
@@ -1342,19 +1347,6 @@ class EditorScreenTest {
       composeRule.waitUntil(2_000) { true }
       composeRule.onNodeWithText(title).performClick()
     }
-    waitForEditorReady()
-  }
-
-  /** Opens a seeded note through search: the result row is keyed by noteId, so this
-   * avoids the home LazyColumn composition/title races that flaked when tests run
-   * back-to-back and share process/navigation state. */
-  private fun openNoteViaSearch(noteId: String, query: String) {
-    composeRule.onNodeWithTag("search-entry").performClick()
-    composeRule.onNodeWithTag("search-query").performTextInput(query)
-    composeRule.waitUntil(10_000) {
-      composeRule.onAllNodesWithTag("search-result-$noteId").fetchSemanticsNodes().isNotEmpty()
-    }
-    composeRule.onNodeWithTag("search-result-$noteId").performClick()
     waitForEditorReady()
   }
 

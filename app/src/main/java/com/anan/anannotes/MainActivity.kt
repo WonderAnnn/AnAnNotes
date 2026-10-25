@@ -40,11 +40,15 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
   private var incomingShare by mutableStateOf<ShareImportPayload?>(null)
+  private var pendingOpenNoteId by mutableStateOf<String?>(null)
   private var startupState by mutableStateOf<StartupState>(StartupState.Recovering)
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     if (savedInstanceState == null) incomingShare = ShareImportHandler.parse(intent)
+    // Outside the savedInstanceState check on purpose: test recreations (rotation,
+    // Activity.recreate) must still honor the explicit debug directive.
+    pendingOpenNoteId = debugOpenNoteId(intent)
     enableEdgeToEdge()
     recoverBeforeShowingApp()
 
@@ -67,6 +71,8 @@ class MainActivity : ComponentActivity() {
                 cacheMessage = cacheMessage,
                 incomingShare = incomingShare,
                 onShareImportConsumed = { incomingShare = null },
+                pendingOpenNoteId = pendingOpenNoteId,
+                onOpenNoteConsumed = { pendingOpenNoteId = null },
                 onSystemBarDarkIconsChange = { useDarkIcons ->
                   val controller = WindowCompat.getInsetsController(window, window.decorView)
                   controller.isAppearanceLightStatusBars = useDarkIcons
@@ -115,6 +121,18 @@ class MainActivity : ComponentActivity() {
     super.onNewIntent(intent)
     setIntent(intent)
     incomingShare = ShareImportHandler.parse(intent)
+  }
+
+  /** Debug builds only (debuggable flag is absent from release): instrumented tests pass
+   * the debug_open_note_id extra to open a seeded note directly, bypassing home-list
+   * navigation races after rotations or back-to-back editor tests. */
+  private fun debugOpenNoteId(intent: Intent): String? {
+    val debuggable = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+    return if (debuggable) intent.getStringExtra(DEBUG_OPEN_NOTE_EXTRA) else null
+  }
+
+  private companion object {
+    const val DEBUG_OPEN_NOTE_EXTRA = "debug_open_note_id"
   }
 }
 
