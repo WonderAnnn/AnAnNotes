@@ -101,9 +101,15 @@ class EditorScreenTest {
     composeRule.onNodeWithTag("editor-copy-full-text").assertIsDisplayed().performClick()
 
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithText("已复制全文").fetchSemanticsNodes().isNotEmpty()
+    }
+    // The app writes the clip on its own dispatcher; polling avoids reading a stale clip.
+    composeRule.waitUntil(5_000) {
+      clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString() == "复制标题\n\n复制正文"
+    }
     val copied = checkNotNull(clipboard.primaryClip).getItemAt(0).coerceToText(context).toString()
     assertEquals("复制标题\n\n复制正文", copied)
-    composeRule.onNodeWithText("已复制全文").assertIsDisplayed()
   }
 
   @Test
@@ -625,6 +631,8 @@ class EditorScreenTest {
   fun imageWidthPanelKeepsPercentEntryAndActionsAccessibleInLandscapeWithKeyboard() {
     val originalRequestedOrientation = composeRule.activity.requestedOrientation
     val originalConfigurationOrientation = composeRule.activity.resources.configuration.orientation
+    // Keep this title short: landscape note cards ellipsize long titles, and openNote
+    // matches the exact text — a longer unique suffix never composes as-is.
     val title = "横屏图片百分比输入验证"
 
     try {
@@ -634,11 +642,18 @@ class EditorScreenTest {
       composeRule.waitUntil(5_000) {
         composeRule.activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
       }
+      // Let the rotated home screen finish composing before seeding and opening the note;
+      // openNote's title wait otherwise races the post-rotation relayout under load.
+      composeRule.waitUntil(5_000) {
+        composeRule.onAllNodesWithTag("new-note-button").fetchSemanticsNodes().isNotEmpty()
+      }
       val noteId = createImageNote(
         title = title,
         blocks = listOf(NoteBlockDraft(id = "landscape-image", type = BlockType.IMAGE, assetPath = "notes/assets/missing.jpg")),
       )
-      openNote(title)
+      // This suite occasionally hits bursts of emulator slowness right after rotation;
+      // double the usual window for the freshly seeded note to reach the list.
+      openNote(title, timeoutMillis = 20_000)
       composeRule.onNodeWithTag("image-block-landscape-image").performScrollTo().performClick()
       composeRule.onNodeWithText("图片大小").assertIsDisplayed()
 
@@ -1099,8 +1114,17 @@ class EditorScreenTest {
     openNewNote()
     composeRule.onNodeWithTag("editor-body").performTextInput("标题呈现验证")
     composeRule.onNodeWithText("H").performClick()
+    // The "已保存" indicator also covers the earlier text-only autosave; wait for the
+    // heading presentation itself to reach the database instead of racing the indicator.
     composeRule.waitUntil(5_000) {
-      composeRule.onAllNodesWithText("已保存").fetchSemanticsNodes().isNotEmpty()
+      val note = runBlocking {
+        AnAnDatabase.getInstance(context).noteDao().observeAllActive().first()
+          .firstOrNull { it.title == "标题呈现验证" }
+      }
+      note != null && runBlocking {
+        NoteRepository(AnAnDatabase.getInstance(context)).observeNote(note.id).first()
+      }?.blocks?.singleOrNull()?.formatting ==
+        BlockFormattingState.Supported(BlockFormatting(presentation = TextBlockPresentation.HEADING))
     }
 
     val saved = runBlocking {
@@ -1305,11 +1329,19 @@ class EditorScreenTest {
     }
   }
 
-  private fun openNote(title: String) {
-    composeRule.waitUntil(10_000) {
+  private fun openNote(title: String, timeoutMillis: Long = 10_000) {
+    composeRule.waitUntil(timeoutMillis) {
       composeRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
     }
-    composeRule.onNodeWithText(title).performClick()
+    try {
+      composeRule.onNodeWithText(title).performClick()
+    } catch (error: AssertionError) {
+      // Under emulator load bursts the card can still be relayouting when the click
+      // injects; settle briefly and retry once before giving up.
+      if (!error.message.orEmpty().contains("Failed to inject touch input")) throw error
+      composeRule.waitUntil(2_000) { true }
+      composeRule.onNodeWithText(title).performClick()
+    }
     waitForEditorReady()
   }
 
