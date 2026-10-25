@@ -1,0 +1,20 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/app/build
+/captures
+.kotlin
+.externalNativeBuild
+.cxx
+local.properties
+
+# Historical build artifacts (kept on disk, archived outside the repo)
+/dist
