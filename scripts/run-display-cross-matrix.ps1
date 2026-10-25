@@ -29,7 +29,7 @@ param(
   [string]$OutCsv = "D:\anan\outputs\display-cross-matrix.csv"
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"  # adb/device hiccups must never kill a multi-hour run; handle per-combo.
 # Accept both array input and comma-joined strings.
 $Cutouts = @($Cutouts | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $WidthDp = @($WidthDp | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
@@ -72,8 +72,13 @@ if (-not ((Invoke-AdbShell "pm list packages") -match "anannotes\.test")) {
   throw "androidTest APK install failed; aborting matrix"
 }
 
-$rows = New-Object System.Collections.Generic.List[string]
-$rows.Add("timestamp,cutout,width_dp,font_scale,nav_mode,theme,verdict,failures")
+if (-not (Test-Path $OutCsv)) { "timestamp,cutout,width_dp,font_scale,nav_mode,theme,verdict,failures" | Set-Content -Encoding ASCII $OutCsv }
+# Rows are appended to the CSV immediately: a crashed emulator or host must not
+# discard hours of results (the first full run lost 28 combos this way).
+function Append-Row([string]$row) { Add-Content -Encoding ASCII -Path $OutCsv -Value $row }
+function Test-DeviceHealthy {
+  return ((Invoke-AdbShell "settings get system font_scale") -match "^[0-9.]+$")
+}
 $comboTotal = $Cutouts.Count * $WidthDp.Count * $FontScales.Count * $NavModes.Count * $Themes.Count
 $comboIndex = 0
 $failedPattern = "^\d+\) (\w+)\("
@@ -85,6 +90,17 @@ try {
           foreach ($theme in $Themes) {
             $comboIndex++
             Write-Output "== [$comboIndex/$comboTotal] $cutout/${dp}dp/fs$fs/nav$nav/$theme =="
+            $deviceOk = $false
+            foreach ($attempt in 1..5) {
+              if (Test-DeviceHealthy) { $deviceOk = $true; break }
+              Write-Output "   device unhealthy, waiting (attempt $attempt/5)..."
+              Start-Sleep -Seconds 20
+            }
+            if (-not $deviceOk) {
+              Write-Output "   -> DEVICE-UNHEALTHY, aborting run (keep CSV rows so far)"
+              Append-Row "$(Get-Date -Format s),$cutout,$dp,$fs,$nav,$theme,DEVICE-UNHEALTHY,"""
+              break
+            }
             foreach ($overlay in $AllCutoutOverlays) {
               [void](Invoke-AdbShell "cmd overlay disable $overlay")
             }
@@ -103,7 +119,7 @@ try {
             elseif ($log -match "Tests run: (\d+),\s*Failures: (\d+)") { $verdict = "FAIL($($Matches[1])/$($Matches[2]))" }
             $failed = ([regex]::Matches($log, $failedPattern) | ForEach-Object { $_.Groups[1].Value }) -join ";"
             Write-Output "   -> $verdict $failed"
-            $rows.Add("$(Get-Date -Format s),$cutout,$dp,$fs,$nav,$theme,$verdict,""$failed""")
+            Append-Row "$(Get-Date -Format s),$cutout,$dp,$fs,$nav,$theme,$verdict,""$failed"""
           }
         }
       }
@@ -117,5 +133,4 @@ try {
   [void](Invoke-AdbShell "settings put secure navigation_mode $OriginalNav")
   [void](Invoke-AdbShell "cmd uimode night no")
 }
-$rows | Set-Content -Encoding ASCII $OutCsv
-Write-Output "csv written: $OutCsv"
+Write-Output "csv (appended incrementally): $OutCsv"
