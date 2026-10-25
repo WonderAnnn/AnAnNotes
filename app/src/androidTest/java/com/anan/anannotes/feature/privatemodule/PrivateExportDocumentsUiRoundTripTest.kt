@@ -123,6 +123,7 @@ class PrivateExportDocumentsUiRoundTripTest {
       if (rootsToggle != null) {
         rootsToggle.click()
       } else {
+        // Android 10's DocumentsUI shows the roots list directly, without drawer affordances.
         val rootsAlreadyOpen = waitForPickerNodeByLabel(
           device,
           1_000,
@@ -130,9 +131,9 @@ class PrivateExportDocumentsUiRoundTripTest {
           "Close navigation drawer",
           "隐藏根目录",
           "关闭导航抽屉",
-        )
+        ) ?: waitForAnyText(device, 3_000, "Internal storage", "内部存储", "Downloads", "下载")
         assertNotNull(
-          "系统目录选择器应提供位置抽屉，避免沿用上次打开的子目录；当前包=${device.currentPackageName}，可见文字=${visiblePickerText(device)}，节点=${visiblePickerNodeSummary(device)}",
+          "系统目录选择器应提供位置抽屉或根目录列表，避免沿用上次打开的子目录；当前包=${device.currentPackageName}，可见文字=${visiblePickerText(device)}，节点=${visiblePickerNodeSummary(device)}",
           rootsAlreadyOpen,
         )
       }
@@ -143,41 +144,42 @@ class PrivateExportDocumentsUiRoundTripTest {
         "Internal storage",
         "内部存储",
       )
-      assertNotNull(
-        "DocumentsUI 位置抽屉应列出设备内部存储；可见文字=${visiblePickerText(device)}",
-        internalStorage,
-      )
-      assertTrue(
-        "应能从位置抽屉打开设备内部存储；节点=${visiblePickerNodeSummary(device)}",
-        clickSmallestClickableContainingText(
-          device,
-          "sdk_gphone64_x86_64",
-          "Internal storage",
-          "内部存储",
-        ),
-      )
-      val storageHeader = waitForPickerHeaderContaining(device, "sdk_gphone", 10_000)
-      assertNotNull("应进入设备内部存储；可见文字=${visiblePickerText(device)}", storageHeader)
+      if (internalStorage != null) {
+        assertTrue(
+          "应能从位置抽屉打开设备内部存储；节点=${visiblePickerNodeSummary(device)}",
+          clickSmallestClickableContainingText(
+            device,
+            "sdk_gphone64_x86_64",
+            "Internal storage",
+            "内部存储",
+          ),
+        )
+        val storageHeader = waitForPickerHeaderContaining(device, "sdk_gphone", 10_000)
+        assertNotNull("应进入设备内部存储；可见文字=${visiblePickerText(device)}", storageHeader)
 
-      val downloadsDirectory = waitForAnyText(device, 10_000, "Download", "Downloads", "下载")
-      assertNotNull(
-        "设备内部存储中应显示 Download 文件夹；可见文字=${visiblePickerText(device)}",
-        downloadsDirectory,
-      )
-      assertTrue(
-        "应能打开 Download 目录卡片；节点=${visiblePickerNodeSummary(device)}",
-        clickSmallestClickableContainingText(device, "Download", "Downloads", "下载"),
-      )
-      val downloadsHeader = waitForPickerHeaderContaining(device, "Download", 10_000)
-      assertNotNull(
-        "点击后应确认已进入 Downloads 子目录；可见文字=${visiblePickerText(device)}",
-        downloadsHeader,
-      )
-      val downloadsUseFolder = waitForFolderAccessAction(device, 10_000)
-      assertNotNull(
-        "进入 Downloads 后系统应允许选择该子目录；可见文字=${visiblePickerText(device)}",
-        downloadsUseFolder,
-      )
+        val downloadsDirectory = waitForAnyText(device, 10_000, "Download", "Downloads", "下载")
+        assertNotNull(
+          "设备内部存储中应显示 Download 文件夹；可见文字=${visiblePickerText(device)}",
+          downloadsDirectory,
+        )
+        assertTrue(
+          "应能打开 Download 目录卡片；节点=${visiblePickerNodeSummary(device)}",
+          clickSmallestClickableContainingText(device, "Download", "Downloads", "下载"),
+        )
+        val downloadsHeader = waitForPickerHeaderContaining(device, "Download", 10_000)
+        assertNotNull(
+          "点击后应确认已进入 Downloads 子目录；可见文字=${visiblePickerText(device)}",
+          downloadsHeader,
+        )
+        val downloadsUseFolder = waitForFolderAccessAction(device, 10_000)
+        assertNotNull(
+          "进入 Downloads 后系统应允许选择该子目录；可见文字=${visiblePickerText(device)}",
+          downloadsUseFolder,
+        )
+      }
+      // Android 10's picker exposes only the Downloads root (no storage browser):
+      // skip the internal-storage navigation and create the dedicated subfolder
+      // directly in the current listing below.
 
       var createFolder = waitForAnyText(device, 1_500, "CREATE NEW FOLDER", "新建文件夹", "New folder")
       if (createFolder == null) {
@@ -304,6 +306,8 @@ class PrivateExportDocumentsUiRoundTripTest {
         val label = runCatching { node.text }.getOrNull().orEmpty()
         if (label.equals("使用此文件夹", ignoreCase = true) ||
           label.equals("USE THIS FOLDER", ignoreCase = true) ||
+          label.equals("SAVE HERE", ignoreCase = true) ||
+          label.contains("保存到此") ||
           label.contains("ALLOW ACCESS TO", ignoreCase = true) ||
           label.equals("ALLOW", ignoreCase = true) ||
           label.contains("允许访问") ||

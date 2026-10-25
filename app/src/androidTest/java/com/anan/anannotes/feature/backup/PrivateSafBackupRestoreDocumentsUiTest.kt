@@ -110,16 +110,62 @@ class PrivateSafBackupRestoreDocumentsUiTest {
     composeRule.onNodeWithTag("backup-restore-success").performScrollTo().assertIsDisplayed()
   }
 
+  /** DocumentsUI differs by release: Android 10 lists roots with a per-root ALLOW ACCESS
+   * action; Android 15+ may reopen at the remembered directory (USE THIS FOLDER — or the
+   * storage root, which it refuses to grant) or show the roots drawer where picking a
+   * root reveals SAVE HERE. Drive any of those shapes. */
   private fun chooseDownloadsRoot(device: UiDevice) {
-    val downloads = waitForAnyText(device, 10_000, "Download", "Downloads", "下载")
-    assertNotNull("DocumentsUI 应提供 Downloads 根目录", downloads)
-    if (downloads!!.isClickable) downloads.click()
-    val useFolder = waitForFolderAccessAction(device, 10_000)
-    assertNotNull("SAF 应允许将 Downloads 根目录选作备份目的地", useFolder)
-    useFolder!!.click()
-    waitForAnyText(device, 3_000, "允许", "ALLOW")?.click()
+    var downloadsClicks = 0
+    val deadline = android.os.SystemClock.uptimeMillis() + 20_000
+    while (android.os.SystemClock.uptimeMillis() < deadline) {
+      if (device.currentPackageName == context.packageName) return
+      // The raw-filesystem root and its top-level Download folder are refused on
+      // Android 11+ ("Can't use this folder"); recover by opening the roots drawer,
+      // where the dedicated downloads root is grantable.
+      val refused = visiblePickerText(device).contains("Can't use this folder")
+      if (refused) {
+        device.findObject(By.desc("Show roots"))?.let { toggle ->
+          toggle.click()
+          downloadsClicks = 0
+          android.os.SystemClock.sleep(600)
+          continue
+        }
+      }
+      if (downloadsClicks < 2) {
+        val downloads = firstClickableLabel(device, "Download", "Downloads", "downloads", "下载")
+        if (downloads != null) {
+          downloads.click()
+          downloadsClicks++
+          android.os.SystemClock.sleep(600)
+          continue
+        }
+      }
+      val access = waitForFolderAccessAction(device, 1_500)
+      if (access != null) {
+        access.click()
+        android.os.SystemClock.sleep(600)
+        continue
+      }
+      device.findObject(By.desc("Show roots"))?.click() ?: android.os.SystemClock.sleep(300)
+      android.os.SystemClock.sleep(300)
+    }
     assertTrue("目录选择后应返回安安简记", device.wait(Until.hasObject(By.pkg(context.packageName)), 10_000))
   }
+
+  private fun firstClickableLabel(device: UiDevice, vararg labels: String): UiObject2? {
+    labels.forEach { label ->
+      var node = device.findObject(By.text(label))
+      while (node != null && !node.isClickable) node = node.parent
+      node?.let { return it }
+    }
+    return null
+  }
+
+  private fun visiblePickerText(device: UiDevice): String =
+    device.findObjects(By.pkg("com.google.android.documentsui"))
+      .mapNotNull { it.text }
+      .filter(String::isNotBlank)
+      .joinToString(",")
 
   private fun chooseExistingBackup(device: UiDevice) {
     val downloads = waitForAnyText(device, 1_500, "Download", "Downloads", "下载")
@@ -185,6 +231,8 @@ class PrivateSafBackupRestoreDocumentsUiTest {
         val label = runCatching { node.text }.getOrNull().orEmpty()
         if (label.equals("使用此文件夹", ignoreCase = true) ||
           label.equals("USE THIS FOLDER", ignoreCase = true) ||
+          label.equals("SAVE HERE", ignoreCase = true) ||
+          label.contains("保存到此") ||
           label.contains("ALLOW ACCESS TO", ignoreCase = true) ||
           label.equals("ALLOW", ignoreCase = true) ||
           label.contains("允许访问") || label == "允许"
