@@ -72,6 +72,7 @@ if (-not ((Invoke-AdbShell "pm list packages") -match "anannotes\.test")) {
   throw "androidTest APK install failed; aborting matrix"
 }
 
+$rows = New-Object System.Collections.Generic.List[string]
 if (-not (Test-Path $OutCsv)) { "timestamp,cutout,width_dp,font_scale,nav_mode,theme,verdict,failures" | Set-Content -Encoding ASCII $OutCsv }
 # Rows are appended to the CSV immediately: a crashed emulator or host must not
 # discard hours of results (the first full run lost 28 combos this way).
@@ -79,16 +80,36 @@ function Append-Row([string]$row) { Add-Content -Encoding ASCII -Path $OutCsv -V
 function Test-DeviceHealthy {
   return ((Invoke-AdbShell "settings get system font_scale") -match "^[0-9.]+$")
 }
+# Resume support: combos already recorded as PASS are skipped, so an aborted run
+# continues where it stopped instead of duplicating rows.
+$AlreadyPassed = @{}
+if (Test-Path $OutCsv) {
+  foreach ($line in (Get-Content $OutCsv)) {
+    $f = $line -split ","
+    if ($f.Count -ge 7 -and $f[6] -eq "PASS") { $AlreadyPassed["$f[1]|$f[2]|$f[3]|$f[4]|$f[5]"] = $true }
+  }
+}
+# Deterministic system-server killer on the API 36 image (reproduced twice):
+# hole cutout overlay + wm density 432 (400dp) + gesture navigation crashes the
+# emulator's settings/overlay services mid-run. Excluded with evidence, not skipped silently.
+$KnownKillerCombos = @("hole|400|1.0|2|light", "hole|400|1.0|2|dark")
 $comboTotal = $Cutouts.Count * $WidthDp.Count * $FontScales.Count * $NavModes.Count * $Themes.Count
 $comboIndex = 0
+$errorStreak = 0
 $failedPattern = "^\d+\) (\w+)\("
-try {
-  foreach ($cutout in $Cutouts) {
+:matrix foreach ($cutout in $Cutouts) {
     foreach ($dp in $WidthDp) {
       foreach ($fs in $FontScales) {
         foreach ($nav in $NavModes) {
           foreach ($theme in $Themes) {
             $comboIndex++
+            $key = "$cutout|$dp|$fs|$nav|$theme"
+            if ($AlreadyPassed.ContainsKey($key)) { Write-Output "== [$comboIndex/$comboTotal] $key already PASS, skip =="; continue }
+            if ($KnownKillerCombos -contains $key) {
+              Write-Output "== [$comboIndex/$comboTotal] $key EXCLUDED (documented system-server killer) =="
+              Append-Row "$(Get-Date -Format s),$cutout,$dp,$fs,$nav,$theme,EXCLUDED-SYSTEM-KILLER,reproduced-twice"
+              continue
+            }
             Write-Output "== [$comboIndex/$comboTotal] $cutout/${dp}dp/fs$fs/nav$nav/$theme =="
             $deviceOk = $false
             foreach ($attempt in 1..5) {
@@ -97,9 +118,9 @@ try {
               Start-Sleep -Seconds 20
             }
             if (-not $deviceOk) {
-              Write-Output "   -> DEVICE-UNHEALTHY, aborting run (keep CSV rows so far)"
-              Append-Row "$(Get-Date -Format s),$cutout,$dp,$fs,$nav,$theme,DEVICE-UNHEALTHY,"""
-              break
+              Write-Output "   -> DEVICE-UNHEALTHY, aborting whole matrix (rows preserved)"
+              Append-Row "$(Get-Date -Format s),$cutout,$dp,$fs,$nav,$theme,DEVICE-UNHEALTHY,"
+              break matrix
             }
             foreach ($overlay in $AllCutoutOverlays) {
               [void](Invoke-AdbShell "cmd overlay disable $overlay")
@@ -120,17 +141,22 @@ try {
             $failed = ([regex]::Matches($log, $failedPattern) | ForEach-Object { $_.Groups[1].Value }) -join ";"
             Write-Output "   -> $verdict $failed"
             Append-Row "$(Get-Date -Format s),$cutout,$dp,$fs,$nav,$theme,$verdict,""$failed"""
+            # Fuse: 3 consecutive non-PASS verdicts means the device is lying about
+            # health (zombie system_server) - stop wasting combos on it.
+            if ($verdict -eq "PASS") { $errorStreak = 0 } else { $errorStreak++ }
+            if ($errorStreak -ge 3) {
+              Write-Output "   -> 3 consecutive non-PASS verdicts, aborting matrix (rows preserved)"
+              break matrix
+            }
           }
         }
       }
     }
-  }
-} finally {
-  Write-Output "restoring device settings..."
-  foreach ($overlay in $AllCutoutOverlays) { [void](Invoke-AdbShell "cmd overlay disable $overlay") }
-  [void](Invoke-AdbShell "wm density reset")
-  [void](Invoke-AdbShell "settings put system font_scale 1.0")
-  [void](Invoke-AdbShell "settings put secure navigation_mode $OriginalNav")
-  [void](Invoke-AdbShell "cmd uimode night no")
 }
+Write-Output "restoring device settings..."
+foreach ($overlay in $AllCutoutOverlays) { [void](Invoke-AdbShell "cmd overlay disable $overlay") }
+[void](Invoke-AdbShell "wm density reset")
+[void](Invoke-AdbShell "settings put system font_scale 1.0")
+[void](Invoke-AdbShell "settings put secure navigation_mode $OriginalNav")
+[void](Invoke-AdbShell "cmd uimode night no")
 Write-Output "csv (appended incrementally): $OutCsv"
