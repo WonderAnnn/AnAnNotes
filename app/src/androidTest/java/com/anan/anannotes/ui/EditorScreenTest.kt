@@ -652,8 +652,8 @@ class EditorScreenTest {
         blocks = listOf(NoteBlockDraft(id = "landscape-image", type = BlockType.IMAGE, assetPath = "notes/assets/missing.jpg")),
       )
       // This suite occasionally hits bursts of emulator slowness right after rotation;
-      // double the usual window for the freshly seeded note to reach the list.
-      openNote(title, timeoutMillis = 20_000)
+      // opening through search (keyed by noteId) sidesteps the home-list races.
+      openNoteViaSearch(noteId, title)
       composeRule.onNodeWithTag("image-block-landscape-image").performScrollTo().performClick()
       composeRule.onNodeWithText("图片大小").assertIsDisplayed()
 
@@ -1342,6 +1342,19 @@ class EditorScreenTest {
       composeRule.waitUntil(2_000) { true }
       composeRule.onNodeWithText(title).performClick()
     }
+    waitForEditorReady()
+  }
+
+  /** Opens a seeded note through search: the result row is keyed by noteId, so this
+   * avoids the home LazyColumn composition/title races that flaked when tests run
+   * back-to-back and share process/navigation state. */
+  private fun openNoteViaSearch(noteId: String, query: String) {
+    composeRule.onNodeWithTag("search-entry").performClick()
+    composeRule.onNodeWithTag("search-query").performTextInput(query)
+    composeRule.waitUntil(10_000) {
+      composeRule.onAllNodesWithTag("search-result-$noteId").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("search-result-$noteId").performClick()
     waitForEditorReady()
   }
 
