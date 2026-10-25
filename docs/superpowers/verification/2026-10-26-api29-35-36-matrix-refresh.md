@@ -58,7 +58,7 @@ API 35 UI seed 失败定性：**测试自动化不适配新版 DocumentsUI 流�
 3. `PrivateSafBackupRestoreDocumentsUiTest` 在 API 35/36 仍无法自动完成 seed：Android 15 模拟器上 DocumentsUI 对可达的 Download 路径显示 "Can't use this folder / To protect your privacy, choose another folder" 拒绝授权（裸文件系统根与顶层 Download 均被拒；`pm clear com.google.android.documentsui` 不能重置记忆位置）。已为测试加入 SAVE HERE/保存到此 确认形态与横幅恢复逻辑，但专属 downloads 根的可行流需交互式验证；**定性为模拟器上选择器可达状态限制，非应用缺陷**，真实 DocumentsUI 点击级覆盖并入小米真机验收。API 29 全链 5/5 已证明应用侧能力。
 4. 下次矩阵刷新时核对 API 29 与 35/36 的 2 项计数差，并保留各轮 XML（避免结果目录覆盖）。
 5. 连续多设备运行 `connectedDebugAndroidTest` 会覆盖 `androidTest-results/connected/debug`；本轮 API 29 明细以当时解析数据与 `outputs/AnAnNotes-baseline-20261025-logs/api29-full-suite.log` 为准。
-6. **2026-10-26 编辑器时序用例加固（提交 3ddb816、98893dd）**：三个用例的已证实竞态已修复——heading 的"已保存"指示灯竞态改为直接等数据库条件；剪贴板测试改为轮询剪贴板与提示；横屏测试先后加固了旋转后首页组合等待、点击重试，并将打开路径改为**搜索结果直开（按 noteId 定位，绕开首页列表组合与标题截断竞态）**。API 36 上多轮验证：heading/剪贴板竞态不再复现，搜索直开消除了此前全部"首页列表找不到标题"的失败。**横屏用例在紧跟其他编辑器用例运行时仍可能失败**（当前失败点后移至点击搜索结果后的编辑器就绪；清数据单独运行可通过）——确定性根治需要 MainActivity 提供"按 noteId 直开编辑器"的调试钩子（应用代码决策，列为后续）；此前 10-04/08 记录的偶发失败与此同源。
+6. **2026-10-26 编辑器时序用例加固（提交 3ddb816、98893dd、0ff33e2）——已收口**：heading"已保存"指示灯竞态改等 DB 条件、剪贴板改轮询（均验证不复现）；横屏用例最终落地为 **debug-only 按 noteId 直开钩子**（`MainActivity` 以 `FLAG_DEBUGGABLE` 门控解析 `debug_open_note_id` extra，release 构建惰性无效；`AppNavigation` 按 incoming-share 同型模式消费；测试以 `recreate()+extra` 直达编辑器，等待窗口覆盖每次重建都会重跑的启动恢复门）。**API 36 上此前"三编辑器用例跟跑必挂"的组合连续 4/4 全过**；修复过程中的两个关键认知记录在案：①钩子必须在 `savedInstanceState != null` 的重建时也解析（否则恰恰在测试需要的路径上失效）；②每次活动重建都会重跑启动恢复（`recoverBeforeShowingApp`），慢负载下恢复门可超过 10 秒——这也是历史各失败形态的共同底因。Release 构建、无 INTERNET 门禁与构建契约均已复验通过。
 
 ## 边界
 
