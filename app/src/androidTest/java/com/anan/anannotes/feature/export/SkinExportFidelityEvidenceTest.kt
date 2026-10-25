@@ -2,7 +2,6 @@ package com.anan.anannotes.feature.export
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.BitmapRegionDecoder
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
@@ -113,24 +112,19 @@ class SkinExportFidelityEvidenceTest {
         crop.recycle(); bitmap.recycle()
       }
 
-      // 5) A4 PNG 600 DPI through the real renderer; crop via region decoder at full res.
+      // 5) A4 PNG 600 DPI through the real renderer; crop from a sample=2 (300 DPI-class)
+      // decode — BitmapRegionDecoder throws NoSuchMethodError on the API 29 system image.
       runBlocking {
         val bytes = renderRaster(snapshot, ExportFormat.PNG_PAGED_600_DPI)
         val (w, h) = 4961 to 7016
+        val bitmap = decode(bytes, 2)
+        val scaleDown = 2
         val (cx, cy, half) = cropCenter(w, h, A4_MARGIN_FRACTION)
-        val decoder = BitmapRegionDecoder.newInstance(bytes, 0, bytes.size) ?: error("A4 PNG decode failed")
-        try {
-          val crop = decoder.decodeRegion(
-            rect(cx - half, cy - half, cx + half, cy + half),
-            BitmapFactory.Options().apply { inSampleSize = 1 },
-          ) ?: error("A4 region decode failed")
-          val normalized = crop512Direct(crop)
-          savePng(normalized, "$id-a4600-crop"); written++
-          csv.append(row(id, "a4-png-600dpi", w, h, half * 2, energy512(normalized), bytes.size))
-          normalized.recycle()
-        } finally {
-          decoder.recycle()
-        }
+        val crop = crop512(bitmap, cx / scaleDown, cy / scaleDown, (half / scaleDown).coerceAtLeast(1))
+        savePng(crop, "$id-a4600-crop"); written++
+        csv.append(row(id, "a4-png-600dpi", w, h, half * 2 / scaleDown, energy512(crop), bytes.size))
+        crop.recycle()
+        bitmap.recycle()
         val preview = decode(bytes, 8)
         savePng(preview, "$id-a4600-preview"); written++
         preview.recycle()
@@ -247,13 +241,6 @@ class SkinExportFidelityEvidenceTest {
     return scaled
   }
 
-  private fun crop512Direct(patch: Bitmap): Bitmap {
-    if (patch.width == 512 && patch.height == 512) return patch
-    val scaled = Bitmap.createScaledBitmap(patch, 512, 512, true)
-    patch.recycle()
-    return scaled
-  }
-
   private fun energy512(bitmap: Bitmap): Double {
     val w = bitmap.width; val h = bitmap.height
     val row = IntArray(w); val below = IntArray(w)
@@ -287,9 +274,6 @@ class SkinExportFidelityEvidenceTest {
   private fun decode(bytes: ByteArray, sample: Int): Bitmap =
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
       BitmapFactory.Options().apply { inSampleSize = sample }) ?: error("PNG 不能解码")
-
-  private fun rect(left: Int, top: Int, right: Int, bottom: Int) =
-    android.graphics.Rect(left.coerceAtLeast(0), top.coerceAtLeast(0), right, bottom)
 
   private fun row(skin: String, format: String, w: Int, h: Int, cropPx: Int, energy: Double, bytes: Int): String =
     "$skin,$format,$w,$h,$cropPx,${"%.2f".format(energy)},$bytes\n"
