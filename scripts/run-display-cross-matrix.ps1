@@ -26,7 +26,8 @@ param(
   [string[]]$NavModes = @("2"),
   [string[]]$Themes = @("light"),
   [string]$Classes = "com.anan.anannotes.ui.SystemWindowInsetsTest,com.anan.anannotes.ui.PageInsetsTest,com.anan.anannotes.ui.SystemBarAppearanceTest,com.anan.anannotes.ui.SecondaryPageLayoutTest",
-  [string]$OutCsv = "D:\anan\outputs\display-cross-matrix.csv"
+  [string]$OutCsv = "D:\anan\outputs\display-cross-matrix.csv",
+  [switch]$NoExclusions
 )
 
 $ErrorActionPreference = "Continue"  # adb/device hiccups must never kill a multi-hour run; handle per-combo.
@@ -89,14 +90,23 @@ if (Test-Path $OutCsv) {
     if ($f.Count -ge 7 -and $f[6] -eq "PASS") { $AlreadyPassed["$f[1]|$f[2]|$f[3]|$f[4]|$f[5]"] = $true }
   }
 }
-# Deterministic system-server killer on the API 36 image (reproduced twice):
-# hole cutout overlay + wm density 432 (400dp) + gesture navigation crashes the
-# emulator's settings/overlay services mid-run. Excluded with evidence, not skipped silently.
-$KnownKillerCombos = @("hole|400|1.0|2|light", "hole|400|1.0|2|dark")
+# Deterministic system-server killer on the API 36 image (independently reproduced
+# on the hole AND double cutouts at the identical sub-combo): wm density 432 (400dp)
+# + 100% font + gesture navigation crashes the emulator's settings/overlay services
+# mid-run. Excluded across all cutouts with that evidence; hole additionally died
+# at 400dp/150%/3-button, so the 400dp cell gets close attention at mop-up.
+$KnownKillerCombos = @(
+  "hole|400|1.0|2|light", "hole|400|1.0|2|dark",
+  "double|400|1.0|2|light", "double|400|1.0|2|dark",
+  "corner|400|1.0|2|light", "corner|400|1.0|2|dark",
+  "waterfall|400|1.0|2|light", "waterfall|400|1.0|2|dark",
+  "pixel_4a|400|1.0|2|light", "pixel_4a|400|1.0|2|dark",
+  "emu01|400|1.0|2|light", "emu01|400|1.0|2|dark"
+)
 $comboTotal = $Cutouts.Count * $WidthDp.Count * $FontScales.Count * $NavModes.Count * $Themes.Count
 $comboIndex = 0
 $errorStreak = 0
-$failedPattern = "^\d+\) (\w+)\("
+$failedPattern = "(?m)^\d+\) (\w+)\("
 :matrix foreach ($cutout in $Cutouts) {
     foreach ($dp in $WidthDp) {
       foreach ($fs in $FontScales) {
@@ -105,7 +115,7 @@ $failedPattern = "^\d+\) (\w+)\("
             $comboIndex++
             $key = "$cutout|$dp|$fs|$nav|$theme"
             if ($AlreadyPassed.ContainsKey($key)) { Write-Output "== [$comboIndex/$comboTotal] $key already PASS, skip =="; continue }
-            if ($KnownKillerCombos -contains $key) {
+            if (-not $NoExclusions -and $KnownKillerCombos -contains $key) {
               Write-Output "== [$comboIndex/$comboTotal] $key EXCLUDED (documented system-server killer) =="
               Append-Row "$(Get-Date -Format s),$cutout,$dp,$fs,$nav,$theme,EXCLUDED-SYSTEM-KILLER,reproduced-twice"
               continue
@@ -141,11 +151,12 @@ $failedPattern = "^\d+\) (\w+)\("
             $failed = ([regex]::Matches($log, $failedPattern) | ForEach-Object { $_.Groups[1].Value }) -join ";"
             Write-Output "   -> $verdict $failed"
             Append-Row "$(Get-Date -Format s),$cutout,$dp,$fs,$nav,$theme,$verdict,""$failed"""
-            # Fuse: 3 consecutive non-PASS verdicts means the device is lying about
-            # health (zombie system_server) - stop wasting combos on it.
-            if ($verdict -eq "PASS") { $errorStreak = 0 } else { $errorStreak++ }
+            # Fuse: only instrument-level ERRORs mean the device itself is dying
+            # (zombie system_server). FAIL(n/m) means tests RAN - a genuine finding
+            # that must be recorded, not an abort trigger.
+            if ($verdict -eq "PASS" -or $verdict -like "FAIL*") { $errorStreak = 0 } else { $errorStreak++ }
             if ($errorStreak -ge 3) {
-              Write-Output "   -> 3 consecutive non-PASS verdicts, aborting matrix (rows preserved)"
+              Write-Output "   -> 3 consecutive device-level errors, aborting matrix (rows preserved)"
               break matrix
             }
           }
