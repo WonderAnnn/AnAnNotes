@@ -12,8 +12,9 @@ waterfall 主题行缺陷修复（提交 `6c896d5`：主题行 Row→`FlowRow` �
 |---|---|---:|---|
 | 35（AnAn_API35_Pixel6） | **OK（234 tests），0 失败 0 错误** | 668s | `D:\anan\outputs\api35-postfix-fullsuite.log` |
 | 29（AnAn_API29_Pixel6） | **OK（232 tests），0 失败 0 错误** | 498s | `D:\anan\outputs\api29-postfix-fullsuite.log` |
+| 36（AnAn_API36_Pixel6，2026-10-27 补齐） | **OK（234 tests），0 失败 0 错误** | 689s | `D:\anan\outputs\api36-postfix-fullsuite.log` |
 
-两 API 总数差 2 为 API 条件用例（新 API 专属类），与历史行为一致；控制台报告不逐行列印假设跳过项，"OK (N)" 即 0 失败 0 错误。JVM 单测（`:app:testDebugUnitTest`）同期全绿。跑毕两模拟器均已关机，ADB 设备列表为空。
+三 API 总数差（29 少 2）为 API 条件用例（新 API 专属类），与历史行为一致；控制台报告不逐行列印假设跳过项，"OK (N)" 即 0 失败 0 错误。JVM 单测（`:app:testDebugUnitTest`）同期全绿。各轮跑毕模拟器均已关机，ADB 设备列表为空。
 
 ## Lint 现状（对照 2026-10-04 基线 17 warnings / 2 hints）
 
@@ -29,4 +30,4 @@ waterfall 主题行缺陷修复（提交 `6c896d5`：主题行 Row→`FlowRow` �
 
 ## 结论
 
-修复 `6c896d5` 在 API 29/35 全量仪器套件上零回归；至此交接指南机器侧全部工作（基线→矩阵刷新→确定性缺陷清零→时序收口→交叉矩阵→缺陷修复与全量回归）闭环。剩余均为用户决策项：皮肤重制策略（A/B/C）、小米真机验收、Release 签名密钥（P0）。
+修复 `6c896d5` 在 API 29/35/36 三镜像全量仪器套件上零回归（35 OK 234 / 29 OK 232 / 36 OK 234）；连同显示交叉矩阵（29 = 180/180、35 = 252/252 修复闭环、36 = 252/252 零排除），交接指南机器侧全部工作（基线→矩阵刷新→确定性缺陷清零→时序收口→三 API 交叉矩阵→缺陷修复与三镜像全量回归）闭环。剩余均为用户决策项：皮肤重制策略（A/B/C）、小米真机验收、Release 正式签名（管线已就绪，见 `2026-10-26-release-signing-pipeline-ready.md`）。
