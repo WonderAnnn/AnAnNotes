@@ -58,7 +58,9 @@
 | waterfall × 320dp × 200% × 三键 × 浅色 | `changingDisplayThemeUpdatesStatusAndNavigationIconsAndRestoresPreference` + `editorActivityRecreationRestoresGlobalNavigationIconsAndKeepsNoteStatusIcons` |
 | waterfall × 320dp × 200% × 三键 × 深色 | `changingDisplayThemeUpdatesStatusAndNavigationIconsAndRestoresPreference`（仅此一个） |
 
-定性：**瀑布边缘切口 + 最窄宽度(320dp) + 最大字号(200%) + 三键导航**的极端组合下系统栏图标深浅切换/恢复断言失败；同组合手势导航（nav2）两主题均通过，360/400dp 宽度均通过。2026-10-04 的 42 项定向组合未覆盖此角落。**待办：读断言细节判定应用适配缺陷 vs 测试期望过严，暂列为真实缺陷候选（P2）**。
+定性：**瀑布边缘切口 + 最窄宽度(320dp) + 最大字号(200%) + 三键导航**的极端组合下系统栏图标深浅切换/恢复断言失败；同组合手势导航（nav2）两主题均通过，360/400dp 宽度均通过。2026-10-04 的 42 项定向组合未覆盖此角落。
+
+**2026-10-26 根因定案并已修复（提交 6c896d5）**：手动驱动 + UI 树 dump + 视觉像素证据三方一致——该组合下主题行三个 FilterChip 总宽超出瀑布切口收窄后的视口，「浅色」chip 本身已被屏幕右缘裁切、「深色」chip 完全在屏外，且该行无法被真实拖动滚出（普通 Row 直接裁掉；改 LazyRow 后内容宽度仍被视为适配、第三项未组合不可滚），导致**深色主题在此配置下完全无法选中**——系统栏图标测试失败正是其正确症状，属真实应用缺陷而非测试期望过严。修复：主题行改用 `FlowRow`（换行布局，任意字号/切口下三选项完整可见可达），测试侧语义查找加 `performScrollTo` 兼容纵向折叠。验证：API 35 模拟器同组合（waterfall×320dp×200%×三键）浅色与深色两变体 `SystemBarAppearanceTest` 各 3/3 PASS，恢复默认显示配置后回归 3/3 PASS，JVM 单测全绿。矩阵 CSV 中的 2 个 FAIL 行保留为修复前历史证据。
 
 **跨镜像对照总结**：API 36 上的全部异常（4 次 system_server 击杀、1 次宿主 qemu 段错误、5 个 FAIL、崩溃后首启动必败）在 API 35 同组合上零复现——36 的结果定性为其镜像缺陷链，35 为干净基线。两个此前"证据排除"的组合（各切口 400dp×100%×手势）在 35 上全部通过。
 
