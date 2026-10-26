@@ -48,10 +48,21 @@
 
 **5 个真实 FAIL（测试运行完成、设备健康）**：hole 与 double 在 `360dp/100%/三键/浅色` 各 1 败（同形，且同组合在另一轮 PASS，条件性）；waterfall 在 `320dp/150%` 的浅/深/手势浅 3 个组合各 1-2 败（**确定性，疑为瀑布边缘 × 150% 字号的真实显示断言问题，待定位用例名**）。
 
-## API 35 完整交叉（同日追加，执行中，完成后更新）
+## API 35 完整交叉（同日完成：252/252 全覆盖）
 
-- 同参数全 252 组合，`-NoExclusions`（35 无击杀证据），失败用例名捕获已修复，编排加入崩溃后首启动重试。
-- 结果 CSV：`D:\anan\outputs\display-cross-api35-full.csv`。
+**结论：252/252 组合全覆盖，250 PASS / 2 FAIL**（`D:\anan\outputs\display-cross-api35-dedup.csv`）。这是交接指南 P1"完整交叉矩阵"首次在单一 API 上闭环。执行采用软件渲染无窗口模式（宿主 gfxstream 当日退化后 `-no-window -gpu swiftshader_indirect` 成为唯一稳定启动方式）与分段编排（每组独立冷启动、组级 65 分钟硬超时、adb 全调用超时、逐组合落盘、失败用例名捕获）。
+
+**唯一真实发现（2 组合、同一用例族，`SystemBarAppearanceTest`）**：
+| 组合 | 失败用例 |
+|---|---|
+| waterfall × 320dp × 200% × 三键 × 浅色 | `changingDisplayThemeUpdatesStatusAndNavigationIconsAndRestoresPreference` + `editorActivityRecreationRestoresGlobalNavigationIconsAndKeepsNoteStatusIcons` |
+| waterfall × 320dp × 200% × 三键 × 深色 | `changingDisplayThemeUpdatesStatusAndNavigationIconsAndRestoresPreference`（仅此一个） |
+
+定性：**瀑布边缘切口 + 最窄宽度(320dp) + 最大字号(200%) + 三键导航**的极端组合下系统栏图标深浅切换/恢复断言失败；同组合手势导航（nav2）两主题均通过，360/400dp 宽度均通过。2026-10-04 的 42 项定向组合未覆盖此角落。**待办：读断言细节判定应用适配缺陷 vs 测试期望过严，暂列为真实缺陷候选（P2）**。
+
+**跨镜像对照总结**：API 36 上的全部异常（4 次 system_server 击杀、1 次宿主 qemu 段错误、5 个 FAIL、崩溃后首启动必败）在 API 35 同组合上零复现——36 的结果定性为其镜像缺陷链，35 为干净基线。两个此前"证据排除"的组合（各切口 400dp×100%×手势）在 35 上全部通过。
+
+**执行韧性沉淀**（脚本已固化）：逐组合 CSV 追加、熔断仅对设备级 ERROR 生效（测试 FAIL 是发现不是故障）、致命组合证据排除、断点续跑。
 
 ## 边界与剩余
 
