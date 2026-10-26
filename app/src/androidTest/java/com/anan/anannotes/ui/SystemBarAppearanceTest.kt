@@ -31,7 +31,7 @@ class SystemBarAppearanceTest {
     composeRule.onNodeWithTag("home-settings-button").performClick()
     val modes = listOf("system", "light", "dark")
     val originalMode = modes.single { mode ->
-      composeRule.onNodeWithTag("theme-mode-$mode").fetchSemanticsNode()
+      composeRule.onNodeWithTag("theme-mode-$mode").performScrollTo().fetchSemanticsNode()
         .config[SemanticsProperties.Selected]
     }
 
@@ -82,7 +82,7 @@ class SystemBarAppearanceTest {
     composeRule.onNodeWithTag("home-settings-button").performClick()
     val modes = listOf("system", "light", "dark")
     val originalMode = modes.single { mode ->
-      composeRule.onNodeWithTag("theme-mode-$mode").fetchSemanticsNode()
+      composeRule.onNodeWithTag("theme-mode-$mode").performScrollTo().fetchSemanticsNode()
         .config[SemanticsProperties.Selected]
     }
 
@@ -135,7 +135,7 @@ class SystemBarAppearanceTest {
     composeRule.onNodeWithTag("home-settings-button").performClick()
     val modes = listOf("system", "light", "dark")
     val originalMode = modes.single { mode ->
-      composeRule.onNodeWithTag("theme-mode-$mode").fetchSemanticsNode()
+      composeRule.onNodeWithTag("theme-mode-$mode").performScrollTo().fetchSemanticsNode()
         .config[SemanticsProperties.Selected]
     }
     val appMode = if (systemIsDark) "light" else "dark"

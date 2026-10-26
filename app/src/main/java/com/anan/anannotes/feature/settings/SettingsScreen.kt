@@ -6,6 +6,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -45,6 +47,7 @@ import com.anan.anannotes.ui.components.PageScaffold
 import com.anan.anannotes.ui.components.HapticSlider
 import com.anan.anannotes.feature.export.ExportDirectoryPreferences
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
   settings: DisplaySettings,
@@ -150,7 +153,14 @@ fun SettingsScreen(
     Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
       Column(modifier = Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("界面主题", style = MaterialTheme.typography.titleLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Wraps instead of scrolling: at large font scales on narrow/waterfall
+        // displays the three chips overflow, and an overflowed row (plain or
+        // lazy) leaves the last chip off-screen with no reachable way to
+        // select the dark theme.
+        FlowRow(
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
           ThemeMode.entries.forEach { mode ->
             FilterChip(
               selected = settings.themeMode == mode,
