@@ -87,7 +87,12 @@ $AlreadyPassed = @{}
 if (Test-Path $OutCsv) {
   foreach ($line in (Get-Content $OutCsv)) {
     $f = $line -split ","
-    if ($f.Count -ge 7 -and $f[6] -eq "PASS") { $AlreadyPassed["$f[1]|$f[2]|$f[3]|$f[4]|$f[5]"] = $true }
+    # NOTE: "$f[1]|$f[2]" does NOT index inside a double-quoted string (the whole
+    # array interpolates joined by spaces and [1] stays literal) - build the key
+    # with -join so resume actually skips already-passed combos.
+    if ($f.Count -ge 7 -and $f[6] -eq "PASS") {
+      $AlreadyPassed[($f[1], $f[2], $f[3], $f[4], $f[5]) -join "|"] = $true
+    }
   }
 }
 # Deterministic system-server killer on the API 36 image (independently reproduced
