@@ -18,3 +18,8 @@ local.properties
 
 # Historical build artifacts (kept on disk, archived outside the repo)
 /dist
+
+# Release signing material - keystore.properties points at a keystore kept outside the repo
+/keystore.properties
+*.jks
+*.keystore

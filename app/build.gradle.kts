@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
@@ -24,10 +26,33 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Release signing stays opt-in: the keystore and passwords live only in the
+    // gitignored keystore.properties at the repo root (see keystore.properties.example);
+    // without that file the release build remains unsigned, exactly as before.
+    val keystorePropertiesFile = rootProject.file("keystore.properties")
+    val hasReleaseSigning = keystorePropertiesFile.isFile
+    val keystoreProperties = Properties()
+    if (hasReleaseSigning) {
+        keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+    }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("releaseFromLocalProperties") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("releaseFromLocalProperties")
+            }
         }
     }
     compileOptions {
