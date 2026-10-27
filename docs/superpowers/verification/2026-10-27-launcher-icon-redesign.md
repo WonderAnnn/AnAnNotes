@@ -22,6 +22,14 @@
 - 单色（主题）图标未在模拟器上截图验证（启动器主题图标开关不在本轮范围），轮廓与前景同源，风险低。
 - 本轮为纯资源变更，未重跑全量仪器套件（最近一次全量在 abe51f0，应用代码此后无改动）；启动烟雾 + 上述链路覆盖。
 
+## 发布候选回归（同日追加）
+
+带新图标的发布候选验证：
+
+- `:app:assembleRelease`（含 lintVital 与无 INTERNET 门禁）BUILD SUCCESSFUL；未签名包 86,434,204 B，SHA-256 `54024c8a1c039d18ed8c46969e2a13930ca98cbaa4c5384c3b5919d665823c29`（仅作审查用，非分发物）。
+- API 35 全量仪器套件（`am instrument` 直跑）：**首次 234 中 1 败**——`EditorScreenTest#camelliaAndGinkgoSkinsCanBeSelectedAndPersisted` 因列表出现两张同名"新皮肤选择保存验证"卡片（一张为本轮、一张为 2026-10-26 直跑残留）。**定性：跨运行残留数据，非代码缺陷**——直跑不经 Gradle 自动卸载，App 数据跨轮保留，而该用例以固定标题断言唯一。**`pm clear com.anan.anannotes` 后复跑：OK（234 tests）全绿**（`D:\anan\outputs\api35-iconbuild-fullsuite-clea r.log`）。
+- **纪律沉淀：同一 AVD 上直跑全量套件前先 `pm clear com.anan.anannotes`**，否则固定标题用例会被上一轮残留击中。
+
 ## 再生
 
 修改图标几何后运行 `powershell -File scripts/regenerate-legacy-icons.ps1` 重出各密度 PNG；前景/单色矢量直接编辑 `drawable/ic_launcher_*.xml`。
