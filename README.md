@@ -207,7 +207,7 @@
 | 安装包 | `AnAnNotes-1.1-release-signed.apk`（86,446,492 B） |
 | APK SHA-256 | `f775a739395677e24c1234e1a8cb92ab54198e268515d5a7ea743eb2c31854ad` |
 | 签名证书 SHA-256 | `013881549da5afddd9b6a4c18f4003ff9f2a56b9626f7f334ac4530e21a25e3a` |
-| 发布渠道 | GitHub Releases（筹备中）· 网盘镜像（筹备中，发布后在此附链接） |
+| 发布渠道 | [GitHub Releases](https://github.com/WonderAnnn/AnAnNotes/releases) · 网盘镜像（筹备中） |
 
 - 下载后建议核对 SHA-256 再安装
 - **安装不需要授予任何权限**（应用未申请运行时权限）
@@ -277,3 +277,5 @@
 ## 关于
 
 作者：WonderAnn · 当前版本 1.1 · 用心做一款"只属于自己"的笔记
+
+**仓库地址**：<https://github.com/WonderAnnn/AnAnNotes> · 问题反馈请提 [Issue](https://github.com/WonderAnnn/AnAnNotes/issues)
