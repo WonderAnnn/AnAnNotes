@@ -2,7 +2,9 @@
 
 <img src="screenshots/icon.png" width="96" alt="安安简记图标" />
 
-# 安安简记
+# 安安简记 · AnAn Notes
+
+**Write quietly. Export brilliantly.**
 
 **不联网的笔记应用：私密真加密 · 本地 OCR · A4 600 DPI 导出 · 每条笔记一款皮肤**
 
